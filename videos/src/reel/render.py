@@ -9,7 +9,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, "reel.mp4")
 PREVIEW = os.environ.get("PREVIEW")  # comma-separated seconds -> PNG stills only
 
 W, H, FPS = 1080, 1920, 30
-DUR = 21.0
+DUR = 37.5
 BPM = 120
 
 BG = (244, 245, 250)
@@ -44,43 +44,43 @@ def L(*words): return list(words)
 def w(t, **k): return (t, k)
 
 SCENES = [
-    dict(t0=0.0, t1=2.5, kind="hook", num=None,
+    dict(t0=0.0, t1=3.0, kind="hook", num=None,
          lines=[L(w("6"), w("VERDADES")),
                 L(w("BRUTALES", c=ACC, m=1.35)),
                 L(w("QUE"), w("NADIE"), w("TE"), w("DICE")),
                 L(w("DEL"), w("GYM", u=True))],
          base=150, step=0.13, sub=None),
-    dict(t0=2.5, t1=5.0, num="01",
+    dict(t0=3.0, t1=8.0, num="01",
          lines=[L(w("IR"), w("AL"), w("GYM")),
                 L(w("NO"), w("ES"), w("EVOLUCIONAR", u=True))],
          sub="Sin estrategia ni progresión,\nentrenás para quedarte igual."),
-    dict(t0=5.0, t1=7.5, num="02",
+    dict(t0=8.0, t1=13.0, num="02",
          lines=[L(w("NO"), w("PODÉS"), w("ENTRENAR")),
                 L(w("MÁS"), w("DE"), w("LO"), w("QUE")),
                 L(w("COMÉS"), w("MAL", u=True))],
          sub="El físico también se\nconstruye en la cocina."),
-    dict(t0=7.5, t1=10.0, num="03",
+    dict(t0=13.0, t1=18.0, num="03",
          lines=[L(w("A"), w("NADIE"), w("LE"), w("IMPORTA")),
                 L(w("CUÁNTO"), w("LEVANTÁS", u=True))],
          sub="Técnica y control > ego."),
-    dict(t0=10.0, t1=12.5, num="04",
+    dict(t0=18.0, t1=23.0, num="04",
          lines=[L(w("TU"), w("CUERPO"), w("NO")),
                 L(w("CAMBIA"), w("EN")),
-                L(w("30", s=1.15), w("DÍAS", s=1.15))],
-         swap=("12 MESES", 1.3),
+                L(w("30", s=1.5), w("DÍAS", s=1.5))],
+         swap=("12 MESES", 1.8),
          sub="Son meses de constancia.\nNo hay atajos."),
-    dict(t0=12.5, t1=15.0, num="05",
+    dict(t0=23.0, t1=28.0, num="05",
          lines=[L(w("NO"), w("NECESITÁS")),
-                L(w("MOTIVACIÓN.", s=0.75)),
+                L(w("MOTIVACIÓN.", s=1.2)),
                 L(w("NECESITÁS")),
                 L(w("DISCIPLINA.", c=ACC, m=1.3))],
          step=0.11, sub=None),
-    dict(t0=15.0, t1=17.5, num="06",
+    dict(t0=28.0, t1=33.0, num="06",
          lines=[L(w("SI"), w("DORMÍS"), w("MAL,")),
                 L(w("SABOTEÁS"), w("TUS")),
                 L(w("RESULTADOS", u=True))],
          sub="El músculo crece\ncuando descansás."),
-    dict(t0=17.5, t1=DUR, kind="outro", num=None,
+    dict(t0=33.0, t1=DUR, kind="outro", num=None,
          lines=[L(w("COMPARATE")),
                 L(w("CON"), w("VOS"), w("DE")),
                 L(w("HACE"), w("3"), w("MESES.", u=True))],
@@ -188,7 +188,9 @@ def draw_scene(frame, idx, lt):
     if sc.get("num"):
         p = ease_out_back(lt / 0.3)
         im, pad, tw, asc, desc = word_image(sc["num"], 200, ACC)
-        paste_scaled(frame, im, W / 2, lay["num_y"] + 100, 0.6 + 0.4 * p, clamp(lt / 0.12))
+        bp = ((sc["t0"] + lt) % (60 / BPM)) / (60 / BPM)
+        pulse = 0.045 * math.exp(-bp * 6) if lt > 0.4 else 0
+        paste_scaled(frame, im, W / 2, lay["num_y"] + 100, 0.6 + 0.4 * p + pulse, clamp(lt / 0.12))
     # words
     last_in = start
     for i, wd in enumerate(lay["words"]):
@@ -238,7 +240,7 @@ def draw_scene(frame, idx, lt):
         y += lay["swap_h"] + 24
     # subtitle card
     if lay["sub_lines"]:
-        ts = max(last_in + 0.25, 1.05) if not sc.get("swap") else 1.55
+        ts = max(last_in + 0.35, 1.2) if not sc.get("swap") else 2.2
         k = lt - ts
         if k >= 0:
             a, off = ease_out(k / 0.3), 40 * (1 - ease_out(k / 0.3))
@@ -389,7 +391,7 @@ def synth_audio(path):
     end_beat = int(DUR / beat)
     for b in range(end_beat):
         t = b * beat
-        intro = t < 2.5
+        intro = t < SCENES[1]["t0"]
         add(kick * 0.95, t)
         if b % 2 == 1 and not intro: add(clap * 0.32, t)
         add(hat * (0.10 if intro else 0.16), t + beat / 2)
@@ -399,7 +401,7 @@ def synth_audio(path):
         add(impact * 0.55, c)
     # outro: let it ring, fade last 1s
     fade = np.ones(n)
-    k = int(sr * 1.2)
+    k = int(sr * 1.5)
     fade[-k:] = np.linspace(1, 0, k)
     out *= fade
     out = np.tanh(out * 1.3)
