@@ -31,6 +31,11 @@ TAB = {"inicio": 0.1, "entrenar": 0.3, "plan": 0.5, "evolucion": 0.7, "chat": 0.
 #   ("tap", t, u, v)   click at t
 # Times come from the screen changes detected in the recording, divided by each window's speed.
 STEPS = [
+    dict(seg="login", l1="Entrás con", l2="tu cuenta",
+         cards=[("🔐", "Tu acceso personal"), ("💬", "¿Dudas? Ayuda por WhatsApp")],
+         cursor=[("move", 0.65, 0.5, 0.279), ("tap", 0.8, 0.5, 0.279),
+                 ("move", 2.65, 0.5, 0.378), ("tap", 2.8, 0.5, 0.378),
+                 ("move", 4.2, 0.5, 0.449), ("tap", 4.4, 0.5, 0.449)]),
     dict(seg="inicio", l1="Sabés qué", l2="te toca hoy",
          cards=[("📅", "Tu entrenamiento del día"), ("📈", "Tu adherencia semanal")],
          cursor=[("move", 0.6, 0.62, 0.72), ("down", 1.0, 0.62, 0.72), ("up", 2.42, 0.62, 0.38),
@@ -402,19 +407,19 @@ def scene_hook(frame, t):
     if t > 0.7:
         a = R.ease_out((t - 0.7) / 0.3) * (1 - R.ease_in((t - 2.6) / 0.3))
         f = R.font(R.INTER_SB, 34)
-        em = R.emoji_image("⏱", 34)
-        cw = int(f.getlength("en 30 segundos") + em.width + 74)
+        em = R.emoji_image("👇", 34)
+        cw = int(f.getlength("paso a paso") + em.width + 74)
         chip = Image.new("RGBA", (cw, 72), (0, 0, 0, 0))
         cd = ImageDraw.Draw(chip)
         cd.rounded_rectangle([0, 0, cw - 1, 71], radius=36, outline=(255, 255, 255, 90), width=2)
-        cd.text((30, 36), "en 30 segundos", font=f, fill=WHITE, anchor="lm")
+        cd.text((30, 36), "paso a paso", font=f, fill=WHITE, anchor="lm")
         chip.alpha_composite(em, (cw - 30 - em.width, 36 - em.height // 2))
         R.paste_scaled(frame, chip, W / 2, 690, 1.0, max(0, a))
     p = R.ease_out((t - 0.9) / 1.4)
     if p > 0:
         cy = H + 760 - (H + 760 - (REST_Y + 260)) * p
         pose = Pose(W / 2, cy + 12 * math.sin(t * 1.6), PH_SCALE, 24 * (1 - p), 18 * (1 - p) + 7 * p)
-        draw_phone(frame, seg_frame("inicio", 0), pose)
+        draw_phone(frame, seg_frame(STEPS[0]["seg"], 0), pose)
     # cursor glides in from the right at the end of the hook
     k = R.ease_out((t - 2.2) / 0.8)
     if k > 0:
@@ -424,7 +429,11 @@ def scene_step(frame, idx, lt, t):
     st = STEPS[idx]
     pose = phone_pose(t, idx, lt)
     scr = seg_frame(st["seg"], int(lt * FPS))
-    u, v, pressed, click = cursor_state(st["cursor"], lt)
+    keys = st["cursor"]
+    if idx > 0:  # start from wherever the previous step left the cursor
+        _, _, pu, pv = STEPS[idx - 1]["cursor"][-1]
+        keys = [("move", 0.0, pu, pv)] + keys
+    u, v, pressed, click = cursor_state(keys, lt)
     tap_ripple(scr, u, v, click)
     if pressed:
         touch_dot(scr, u, v)
