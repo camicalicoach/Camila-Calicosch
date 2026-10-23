@@ -336,80 +336,117 @@ def render_frame(t):
 
 # ---------------------------------------------------------------- audio
 def synth_audio(path):
+    """Stereo 120 BPM track mixed for phone speakers: most energy sits in the mids
+    (plucked arpeggio, chords, clap, hats, a click on the kick and harmonics on the bass),
+    because phone speakers barely reproduce anything under ~150 Hz."""
     sr = 44100
     n = int(sr * DUR)
-    out = np.zeros(n, dtype=np.float64)
+    L_, R_ = np.zeros(n), np.zeros(n)
     beat = 60 / BPM
     rng = np.random.default_rng(3)
-    def add(sig, t):
-        i = int(t * sr)
-        if i >= n: return
-        j = min(n, i + len(sig))
-        out[i:j] += sig[: j - i]
-    # kick
-    kt = np.arange(int(sr * 0.35)) / sr
-    freq = 45 + 110 * np.exp(-kt * 30)
-    kick = np.sin(2 * np.pi * np.cumsum(freq) / sr) * np.exp(-kt * 9)
-    kick += 0.3 * np.exp(-kt * 400) * rng.normal(0, 1, len(kt))
-    # clap
-    ct = np.arange(int(sr * 0.25)) / sr
-    clap_noise = rng.normal(0, 1, len(ct))
-    clap_noise = np.convolve(clap_noise, [1, -0.9], "same")
-    clap = clap_noise * (np.exp(-ct * 25) + 0.6 * np.exp(-((ct - 0.012) ** 2) / 1e-5))
-    # hat
-    ht = np.arange(int(sr * 0.06)) / sr
-    hat_n = np.diff(rng.normal(0, 1, len(ht) + 1))
-    hat = hat_n * np.exp(-ht * 70)
-    # impact for cuts
-    it = np.arange(int(sr * 1.2)) / sr
-    ifreq = 38 + 80 * np.exp(-it * 12)
-    impact = np.sin(2 * np.pi * np.cumsum(ifreq) / sr) * np.exp(-it * 3.2)
-    impact += 0.25 * rng.normal(0, 1, len(it)) * np.exp(-it * 18)
-    # riser into each cut
-    rt = np.arange(int(sr * 0.5)) / sr
-    riser = rng.normal(0, 1, len(rt)) * (rt / rt[-1]) ** 2
-    riser = np.convolve(riser, np.ones(6) / 6, "same")
-    # bass + chord pad (Am F C G, one bar = 4 beats = 2s)
-    roots = [55.0, 43.65, 65.41, 49.0]
-    chords = [[220, 261.63, 329.63], [174.61, 220, 261.63], [196, 261.63, 329.63], [196, 246.94, 293.66]]
     tt = np.arange(n) / sr
-    bar = (tt // (4 * beat)).astype(int) % 4
+
+    def add(sig, t, gain=1.0, pan=0.0):
+        i = int(t * sr)
+        if i >= n or i + len(sig) <= 0:
+            return
+        j = min(n, i + len(sig))
+        L_[i:j] += sig[: j - i] * gain * (1 - max(0, pan))
+        R_[i:j] += sig[: j - i] * gain * (1 + min(0, pan))
+
+    def env(dur, attack=0.003, decay=8.0):
+        t = np.arange(int(sr * dur)) / sr
+        return t, np.minimum(1, t / attack) * np.exp(-t * decay)
+
+    # kick: sub sweep + 100-200 Hz body + a bright click so it reads on small speakers
+    kt, ke = env(0.32, 0.001, 10)
+    kick = 0.6 * np.sin(2 * np.pi * np.cumsum(55 + 140 * np.exp(-kt * 28)) / sr) * ke
+    kick += 0.7 * np.tanh(3 * np.sin(2 * np.pi * 180 * kt)) * np.exp(-kt * 26)
+    click = rng.normal(0, 1, len(kt)) * np.exp(-kt * 900)
+    kick += 0.8 * np.convolve(click, [1, -1], "same")
+    # clap: band-passed noise with a few re-triggers
+    ct, _ = env(0.25)
+    noise = np.convolve(rng.normal(0, 1, len(ct)), [1, 0, -1], "same")
+    clap = noise * (np.exp(-ct * 22) + 0.7 * np.exp(-((ct - 0.01) % 0.012) * 300) * (ct < 0.035))
+    # hats
+    ht, _ = env(0.07)
+    hat = np.diff(rng.normal(0, 1, len(ht) + 1)) * np.exp(-ht * 60)
+    # impact + riser for cuts
+    it, _ = env(1.0)
+    impact = np.sin(2 * np.pi * np.cumsum(60 + 160 * np.exp(-it * 10)) / sr) * np.exp(-it * 4)
+    impact += 0.6 * rng.normal(0, 1, len(it)) * np.exp(-it * 9)
+    rt = np.arange(int(sr * 0.6)) / sr
+    riser = np.convolve(rng.normal(0, 1, len(rt)), [1, -1], "same") * (rt / rt[-1]) ** 2.5
+
+    # harmony: Am - F - C - G, one chord per bar
+    chords = [[220.0, 261.63, 329.63], [174.61, 220.0, 261.63], [196.0, 261.63, 329.63], [196.0, 246.94, 293.66]]
+    roots = [110.0, 87.31, 130.81, 98.0]
+    bar_len = 4 * beat
+    bar = (tt // bar_len).astype(int) % 4
+
+    # bass with harmonics (saturated saw) so the notes are audible above 150 Hz
     root = np.array(roots)[bar]
-    phase = np.cumsum(root) / sr
-    bass = np.sign(np.sin(2 * np.pi * phase)) * 0.5 + np.sin(2 * np.pi * phase)
-    bass = np.convolve(bass, np.ones(40) / 40, "same")
-    # sidechain-ish envelope on beats
+    ph = np.cumsum(root) / sr
+    saw = 2 * (ph % 1) - 1
     pos = (tt % beat) / beat
-    duck = 0.35 + 0.65 * np.clip(pos * 3, 0, 1)
+    bass_env = np.exp(-pos * 3.5)
+    bass = np.tanh(2.5 * saw) * bass_env
+    bass = np.convolve(bass, np.ones(6) / 6, "same")
+
+    # warm chord pad (detuned), ducked on every beat
     pad = np.zeros(n)
     for ci, ch in enumerate(chords):
-        mask = bar == ci
-        for fq in ch:
-            pad += mask * (np.sin(2 * np.pi * fq * tt) + 0.4 * np.sin(2 * np.pi * fq * 2.003 * tt))
-    pad = np.convolve(pad, np.ones(200) / 200, "same")
-    out += 0.22 * bass * duck + 0.035 * pad * duck
-    end_beat = int(DUR / beat)
-    for b in range(end_beat):
-        t = b * beat
-        intro = t < SCENES[1]["t0"]
-        add(kick * 0.95, t)
-        if b % 2 == 1 and not intro: add(clap * 0.32, t)
-        add(hat * (0.10 if intro else 0.16), t + beat / 2)
-        if not intro and b % 2 == 0: add(hat * 0.07, t + beat * 0.75)
+        m = bar == ci
+        for f in ch:
+            pad += m * (np.sin(2 * np.pi * f * tt) + 0.5 * np.sin(2 * np.pi * f * 1.004 * tt) + 0.25 * np.sin(2 * np.pi * f * 2 * tt))
+    duck = 0.45 + 0.55 * np.clip(pos * 2.5, 0, 1)
+    pad *= duck
+
+    # plucked arpeggio, 8th notes, one octave up
+    pt, pe = env(0.28, 0.002, 14)
+    intro_end = SCENES[1]["t0"]
+    for k in range(int(DUR / (beat / 2))):
+        t0 = k * beat / 2
+        ch = chords[int(t0 // bar_len) % 4]
+        f = ch[[0, 1, 2, 1, 0, 2, 1, 2][k % 8]] * 2
+        tone = (np.sin(2 * np.pi * f * pt) + 0.35 * np.sin(2 * np.pi * 2 * f * pt) + 0.15 * np.sin(2 * np.pi * 3 * f * pt)) * pe
+        add(tone, t0, 0.42 if t0 >= intro_end else 0.28, pan=0.35 if k % 2 else -0.35)
+
+    mono = 0.16 * bass + 0.09 * pad
+    L_ += mono
+    R_ += mono
+    for b in range(int(DUR / beat)):
+        t0 = b * beat
+        intro = t0 < intro_end
+        add(kick, t0, 0.8)
+        if b % 2 == 1 and not intro:
+            add(clap, t0, 0.42)
+        add(hat, t0 + beat / 2, 0.22 if intro else 0.32, pan=0.25)
+        if not intro:
+            add(hat, t0 + beat * 0.75, 0.15, pan=-0.25)
     for c in CUTS:
-        add(riser * 0.08, c - 0.5)
-        add(impact * 0.55, c)
-    # outro: let it ring, fade last 1s
-    fade = np.ones(n)
+        add(riser, c - 0.6, 0.10)
+        add(impact, c, 0.35)
+
+    out = np.stack([L_, R_], 1)
+    # high-pass (~45 Hz): subtract a moving average to drop rumble phones can't play
+    win = int(sr / 45)
+    for ch in range(2):
+        x = out[:, ch]
+        c = np.cumsum(np.concatenate([np.zeros(win), x]))
+        out[:, ch] = x - (c[win:] - c[:-win]) / win
     k = int(sr * 1.5)
-    fade[-k:] = np.linspace(1, 0, k)
-    out *= fade
-    out = np.tanh(out * 1.3)
+    out[-k:] *= np.linspace(1, 0, k)[:, None]
+    out = np.tanh(out * 1.6)
     out /= np.max(np.abs(out)) / 0.89
-    pcm = (out * 32767).astype(np.int16)
-    with wave.open(path, "wb") as wf:
-        wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(sr)
-        wf.writeframes(pcm.tobytes())
+    tmp = path + ".raw.wav"
+    with wave.open(tmp, "wb") as wf:
+        wf.setnchannels(2); wf.setsampwidth(2); wf.setframerate(sr)
+        wf.writeframes((out * 32767).astype(np.int16).tobytes())
+    # loud enough for Reels (-11 LUFS, true peak -1 dB)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", tmp, "-af", "loudnorm=I=-11:TP=-1:LRA=9",
+                    "-ar", str(sr), path], check=True)
+    os.remove(tmp)
 
 # ---------------------------------------------------------------- main
 if __name__ == "__main__":
