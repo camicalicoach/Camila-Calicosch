@@ -1,4 +1,5 @@
-"""Gancho para el Reel: el alumno haciendo el ejercicio + "¿Esto es un peso muerto?" + opciones A/B.
+"""Gancho para el Reel: el alumno haciendo el ejercicio + "¿Qué ejercicio es este?" + opciones A/B
+y una cuenta regresiva para que piensen antes del spoiler.
 
 A diferencia del gancho de historias (respuestas de la caja de preguntas), este arranca en frío.
 Genera video + audio (base suave, pop por cada elemento, subida y golpe al final) y guarda el
@@ -16,9 +17,10 @@ P900 = os.path.join(FONTS, "Poppins-900.ttf")
 P800 = os.path.join(FONTS, "Poppins-800.ttf")
 EMOJI = "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf"
 BROLL, OUT = sys.argv[1], sys.argv[2]
-W, H, FPS, DUR = 1080, 1920, 30, 4.0
-SRC = [(4.3, 6.7), (0.3, 1.9)]           # hinge back, then drive the hips forward
-T_L1, T_L2, T_EMO, T_A, T_B = 0.15, 0.45, 0.8, 1.6, 1.95
+W, H, FPS, DUR = 1080, 1920, 30, 6.5
+SRC = [(2.5, 6.7), (0.3, 2.6)]           # full rep at real speed: stand, hinge back, drive forward
+T_L1, T_L2, T_EMO, T_A, T_B = 0.15, 0.45, 0.8, 1.4, 1.75
+T_COUNT = 3.3                             # 3, 2, 1 countdown, one number per second
 
 
 def clamp(x, a=0.0, b=1.0): return max(a, min(b, x))
@@ -78,8 +80,8 @@ def paste(frame, im, cx, cy, scale=1.0, alpha=1.0, angle=0.0):
     frame.alpha_composite(im, (int(cx - im.width / 2), int(cy - im.height / 2)))
 
 
-L1 = text_img("¿ESTO ES UN", P900, 108)
-L2 = text_img("PESO MUERTO?", P900, 114)
+L1 = text_img("¿QUÉ EJERCICIO", P900, 108)
+L2 = text_img("ES ESTE?", P900, 130)
 EMO = emoji("🤔", 130)
 OPT_A = option("A", "Peso muerto")
 OPT_B = option("B", "Hip thrust")
@@ -111,13 +113,23 @@ def render(t):
         if k >= 0:
             paste(fr, img, W / 2, cy, 1.35 - 0.35 * ease_out(k / 0.18), clamp(k / 0.06))
     k = t - T_EMO
-    if k >= 0:
+    if k >= 0 and t < T_COUNT:
         paste(fr, EMO, W / 2, 640, ease_back(k / 0.35), clamp(k / 0.08), 10 * math.sin(t * 6) * ease_out(k / 0.4))
     for img, ti, cx in ((OPT_A, T_A, W / 2), (OPT_B, T_B, W / 2)):
         k = t - ti
         if k >= 0:
             cy = 1380 if img is OPT_A else 1530
             paste(fr, img, cx, cy, ease_back(k / 0.3), clamp(k / 0.08))
+    k = t - T_COUNT
+    if 0 <= k < 3.0:
+        n = 3 - int(k)
+        frac = k - int(k)
+        ring = Image.new("RGBA", (220, 220), (0, 0, 0, 0))
+        d = ImageDraw.Draw(ring)
+        d.ellipse([10, 10, 210, 210], fill=(14, 19, 36, 200))
+        d.arc([10, 10, 210, 210], -90, -90 + 360 * (1 - frac), fill=(255, 221, 64), width=14)
+        d.text((110, 112), str(n), font=ImageFont.truetype(P900, 110), fill=(255, 255, 255), anchor="mm")
+        paste(fr, ring, W / 2, 660, 1.25 - 0.25 * ease_out(frac / 0.15), clamp(k / 0.1))
     return fr.convert("RGB")
 
 
@@ -159,6 +171,9 @@ def audio(path):
     add(pop(700), T_EMO, 0.5)
     add(pop(560), T_A, 0.55, -0.25)
     add(pop(660), T_B, 0.55, 0.25)
+    tick = np.sin(2 * np.pi * 1500 * np.arange(int(sr * 0.05)) / sr) * np.exp(-np.arange(int(sr * 0.05)) / sr * 90)
+    for k in range(3):
+        add(tick, T_COUNT + k, 0.5)
     rt = np.arange(int(sr * 1.3)) / sr
     add(np.convolve(rng.normal(0, 1, len(rt)), [1, -1], "same") * (rt / rt[-1]) ** 2.5, DUR - 1.35, 0.18)
     out = np.tanh(np.stack([L, R], 1) * 1.4)
