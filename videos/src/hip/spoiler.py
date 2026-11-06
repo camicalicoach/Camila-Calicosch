@@ -79,7 +79,7 @@ PILL = pill("SPOILER")
 NO = text_img("NO ES", P900, 150)
 PESO = text_img("PESO MUERTO", P900, 128)
 X = emoji("❌", 190)
-SUB = text_img("Te muestro qué es", P800, 58)
+SUB = text_img("Es un hip thrust de pie", P800, 58)
 POINT = emoji("👇", 56)
 
 
