@@ -24,12 +24,12 @@ CLIPS = [
     ("IMG_2311", 9.4, 11.4, 2.0, ""),       #                      · de costado
     ("IMG_2312", 1.5, 4.0, 2.0, ""),        # estocada atrás · de frente
     ("IMG_2312", 15.5, 18.0, 2.0, ""),      #                · de perfil
-    ("IMG_2315", 4.5, 7.0, 2.0, ""),        # puente de glúteo · un lado
-    ("IMG_2315", 21.0, 23.5, 2.0, ""),      #                  · el otro lado
+    ("IMG_2315", 4.5, 7.0, 2.5, ""),        # puente de glúteo · un lado (ya en posición, velocidad real)
+    ("IMG_2315", 24.2, 27.2, 3.0, ""),      #                  · el otro lado, sin la preparación
     ("IMG_2313", 4.0, 6.4, 2.0, ""),        # plancha con toques · con rodillas
     ("IMG_2313", 17.6, 20.0, 2.0, ""),      #                    · completa
-    ("IMG_2314", 3.0, 5.0, 2.0, ""),        # mountain climbers
-    ("IMG_2314", 10.5, 12.5, 2.0, ""),
+    ("IMG_2314", 3.0, 6.05, 3.05, ""),      # mountain climbers: 2 repeticiones completas, velocidad real
+    ("IMG_2314", 9.3, 12.3, 3.0, ""),
     ("IMG_2311", 11.4, 14.9, 3.5, ""),      # cierre
 ]
 starts, t = [], 0.0
