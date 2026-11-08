@@ -134,7 +134,8 @@ def main():
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs,
            "-f", "lavfi", "-t", f"{DUR}", "-i", "anullsrc=r=44100:cl=stereo",
            "-filter_complex", ";".join(filters), "-map", f"[{last}]", "-map", f"{n0 + len(TEXTS)}:a",
-           "-t", f"{DUR}", "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-pix_fmt", "yuv420p",
+           "-t", f"{DUR}", "-c:v", "libx264", "-preset", "slow", "-crf", "23", "-maxrate", "10M", "-bufsize", "20M",
+           "-pix_fmt", "yuv420p",
            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", OUT]
     subprocess.run(cmd, check=True)
     print("done", OUT, f"{DUR:.1f}s")
