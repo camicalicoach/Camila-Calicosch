@@ -1,97 +1,135 @@
 """Reel 3 · "POV: bailás y tenés 20 minutos para entrenar en casa".
 
-Edición simple como la referencia: cortes limpios de 3-4 repeticiones por ejercicio, color cálido
-tipo película con grano suave, textos blancos sobrios estilo Instagram. Sin música (se agrega al
-publicar). Arranca sobre la sentadilla con salto porque no hay toma de baile.
+Edición simple como la referencia: dos ángulos por ejercicio, color cálido tipo película con grano
+suave y textos solo en blanco (serif cursiva + detalle chico en mayúsculas). La primera toma va
+en blanco y negro y desenfocada con el POV encima, y el video pasa a color al arrancar el primer
+ejercicio. Sin música (se agrega al publicar). No hay toma de baile, así que abre con la sentadilla.
 
 Uso: python3 build_baile.py <carpeta_raw> <salida.mp4>
 """
 import os, subprocess, sys
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+FONTS = os.path.join(HERE, "..", "fonts")
+SERIF = os.path.join(FONTS, "PlayfairDisplay-SemiBoldItalic.ttf")
+INTER_SB = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
 RAW, OUT = sys.argv[1], sys.argv[2]
 W, H, FPS = 1080, 1920, 30
-INTER_SB = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
-INTER_B = "/usr/share/fonts/opentype/inter/Inter-Bold.otf"
-INTER_M = "/usr/share/fonts/opentype/inter/Inter-Medium.otf"
 
-# (clip, source start, source end, output seconds) — 3-4 reps each
+# (clip, source start, source end, output seconds, style) — two angles per exercise
 CLIPS = [
-    ("IMG_2311", 0.3, 7.3, 7.0),    # sentadilla con salto (de frente); el POV va arriba los primeros 3 s
-    ("IMG_2312", 1.0, 7.0, 4.0),    # estocada atrás alternada
-    ("IMG_2315", 4.0, 9.0, 4.0),    # puente de glúteo a una pierna
-    ("IMG_2313", 17.6, 21.6, 4.0),  # plancha con toques de hombro (plancha completa)
-    ("IMG_2314", 2.5, 6.5, 4.0),    # mountain climbers
-    ("IMG_2311", 9.4, 14.9, 5.5),   # cierre: sentadilla con salto de costado, la toma con más energía
+    ("IMG_2311", 0.3, 3.3, 3.0, "intro"),   # POV: black & white, blurred
+    ("IMG_2311", 3.3, 5.3, 2.0, ""),        # sentadilla con salto · de frente
+    ("IMG_2311", 9.4, 11.4, 2.0, ""),       #                      · de costado
+    ("IMG_2312", 1.5, 4.0, 2.0, ""),        # estocada atrás · de frente
+    ("IMG_2312", 15.5, 18.0, 2.0, ""),      #                · de perfil
+    ("IMG_2315", 4.5, 7.0, 2.0, ""),        # puente de glúteo · un lado
+    ("IMG_2315", 21.0, 23.5, 2.0, ""),      #                  · el otro lado
+    ("IMG_2313", 4.0, 6.4, 2.0, ""),        # plancha con toques · con rodillas
+    ("IMG_2313", 17.6, 20.0, 2.0, ""),      #                    · completa
+    ("IMG_2314", 3.0, 5.0, 2.0, ""),        # mountain climbers
+    ("IMG_2314", 10.5, 12.5, 2.0, ""),
+    ("IMG_2311", 11.4, 14.9, 3.5, ""),      # cierre
 ]
 starts, t = [], 0.0
 for c in CLIPS:
     starts.append(t); t += c[3]
 DUR = t
 
-# text cards: (start, end, lines) — lines are (text, font, size)
+# (start, end, title, detail) — title None is the POV card
 TEXTS = [
-    (0.15, 3.0, [("POV: bailás y tenés", INTER_B, 64), ("20 minutos para", INTER_B, 64),
-                 ("entrenar en casa", INTER_B, 64)], 1300),
-    (3.0, 7.0, [("Sentadilla con salto", INTER_B, 58), ("40 seg", INTER_M, 46)], 330),
-    (starts[1], starts[2], [("Estocada atrás alternada", INTER_B, 58), ("40 seg", INTER_M, 46)], 330),
-    (starts[2], starts[3], [("Puente de glúteo a una pierna", INTER_B, 54), ("40 seg por lado", INTER_M, 46)], 330),
-    (starts[3], starts[4], [("Plancha con toques de hombro", INTER_B, 54), ("40 seg", INTER_M, 46)], 330),
-    (starts[4], starts[5], [("Mountain climbers", INTER_B, 58), ("40 seg", INTER_M, 46)], 330),
-    (starts[5] + 0.2, DUR, [("4 vueltas", INTER_B, 72), ("20 seg de pausa entre ejercicios", INTER_M, 46)], 520),
+    (0.2, 3.0, None, None),
+    (starts[1], starts[3], "Sentadilla con salto", "40 SEG"),
+    (starts[3], starts[5], "Estocada atrás alternada", "40 SEG"),
+    (starts[5], starts[7], "Puente de glúteo a una pierna", "40 SEG POR LADO"),
+    (starts[7], starts[9], "Plancha con toques de hombro", "40 SEG"),
+    (starts[9], starts[11], "Mountain climbers", "40 SEG"),
+    (starts[11] + 0.2, DUR, "4 vueltas", "20 SEG DE PAUSA ENTRE EJERCICIOS"),
 ]
+TITLE_Y = 1330  # over the darker floor so white text reads without a box
 
-# warm, soft film look like the reference
+# warm, soft film look like the reference; the intro shot is black & white and blurred
 GRADE = ("eq=contrast=0.93:saturation=0.82:gamma=1.03,"
          "colorbalance=rs=0.06:gs=0.02:bs=-0.08:rm=0.05:gm=0.01:bm=-0.06:rh=0.04:bh=-0.07,"
-         "curves=all='0/0.04 0.5/0.52 1/0.96',noise=alls=7:allf=t")
+         "curves=all='0/0.04 0.5/0.52 1/0.96'")
+INTRO = "hue=s=0,gblur=sigma=9,eq=brightness=-0.06:contrast=0.9"
 
 
-def card(lines):
-    """White text on a translucent dark box, centred — like Instagram's text-with-background style,
-    so it stays readable over the bright window."""
-    rows = []
-    for txt, f, sz in lines:
-        fnt = ImageFont.truetype(f, sz)
-        l, tp, r, b = fnt.getbbox(txt)
-        rows.append((txt, fnt, l, tp, r - l, b - tp))
-    gap, padx, pady = 14, 34, 24
-    bw = max(r[4] for r in rows) + 2 * padx
-    bh = sum(r[5] for r in rows) + gap * (len(rows) - 1) + 2 * pady
-    im = Image.new("RGBA", (W, bh + 40), (0, 0, 0, 0))
-    x0 = (W - bw) // 2
-    ImageDraw.Draw(im).rounded_rectangle([x0, 20, x0 + bw, 20 + bh], radius=26, fill=(0, 0, 0, 120))
+def spaced(d, xy, txt, fnt, spacing):
+    x, y = xy
+    for ch in txt:
+        d.text((x, y), ch, font=fnt, fill=(255, 255, 255))
+        x += fnt.getlength(ch) + spacing
+
+
+def spaced_width(txt, fnt, spacing):
+    return sum(fnt.getlength(c) for c in txt) + spacing * (len(txt) - 1)
+
+
+def soft(im):
+    """Soft dark glow behind white text so it reads over bright areas without a box."""
+    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    sh.putalpha(im.getchannel("A").point(lambda a: int(a * 0.55)))
+    out = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    out.alpha_composite(sh.filter(ImageFilter.GaussianBlur(10)), (0, 3))
+    out.alpha_composite(im)
+    return out
+
+
+def title_card(title, detail):
+    im = Image.new("RGBA", (W, 300), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    y = 20 + pady
-    for txt, fnt, l, tp, rw, rh in rows:
-        d.text(((W - rw) / 2 - l, y - tp), txt, font=fnt, fill=(255, 255, 255))
-        y += rh + gap
-    return im
+    size = 88
+    ft = ImageFont.truetype(SERIF, size)
+    while ft.getlength(title) > W - 120:
+        size -= 4
+        ft = ImageFont.truetype(SERIF, size)
+    d.text(((W - ft.getlength(title)) / 2, 40), title, font=ft, fill=(255, 255, 255))
+    fd = ImageFont.truetype(INTER_SB, 30)
+    dw = spaced_width(detail, fd, 6)
+    y = 40 + size * 1.25 + 14
+    for x0, x1 in (((W - dw) / 2 - 70, (W - dw) / 2 - 24), ((W + dw) / 2 + 24, (W + dw) / 2 + 70)):
+        d.line([(x0, y + 17), (x1, y + 17)], fill=(255, 255, 255), width=2)
+    spaced(d, ((W - dw) / 2, y), detail, fd, 6)
+    return soft(im)
+
+
+def pov_card():
+    im = Image.new("RGBA", (W, 520), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    fd = ImageFont.truetype(INTER_SB, 34)
+    spaced(d, ((W - spaced_width("POV", fd, 14)) / 2, 40), "POV", fd, 14)
+    ft = ImageFont.truetype(SERIF, 92)
+    for i, line in enumerate(["bailás y tenés", "20 minutos para", "entrenar en casa"]):
+        d.text(((W - ft.getlength(line)) / 2, 110 + i * 118), line, font=ft, fill=(255, 255, 255))
+    return soft(im)
 
 
 def main():
     tmp = os.path.join(os.path.dirname(os.path.abspath(OUT)), "baile_txt")
     os.makedirs(tmp, exist_ok=True)
     inputs, filters = [], []
-    for i, (clip, s, e, d) in enumerate(CLIPS):
+    for i, (clip, s, e, d, style) in enumerate(CLIPS):
         inputs += ["-ss", f"{s}", "-t", f"{e - s + 0.2}", "-i", os.path.join(RAW, f"{clip}.MOV")]
         speed = (e - s) / d
+        look = INTRO if style == "intro" else GRADE
         filters.append(f"[{i}:v]setpts=(PTS-STARTPTS)/{speed:.4f},fps={FPS},"
                        f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
-                       f"trim=duration={d},setpts=PTS-STARTPTS[c{i}]")
-    filters.append("".join(f"[c{i}]" for i in range(len(CLIPS))) + f"concat=n={len(CLIPS)}:v=1:a=0,{GRADE}[base]")
-    last = "base"
-    n0 = len(CLIPS)
-    for j, (t0, t1, lines, cy) in enumerate(TEXTS):
+                       f"trim=duration={d},setpts=PTS-STARTPTS,{look}[c{i}]")
+    filters.append("".join(f"[c{i}]" for i in range(len(CLIPS))) +
+                   f"concat=n={len(CLIPS)}:v=1:a=0,noise=alls=7:allf=t[base]")
+    last, n0 = "base", len(CLIPS)
+    for j, (t0, t1, title, detail) in enumerate(TEXTS):
+        im = pov_card() if title is None else title_card(title, detail)
+        cy = 960 if title is None else TITLE_Y
         png = os.path.join(tmp, f"t{j}.png")
-        im = card(lines)
         im.save(png)
         inputs += ["-loop", "1", "-t", f"{DUR}", "-i", png]
         k = n0 + j
-        y = int(cy - im.height / 2)
-        fade = f"fade=t=in:st={t0:.2f}:d=0.25:alpha=1,fade=t=out:st={max(t0, t1 - 0.25):.2f}:d=0.25:alpha=1"
+        fade = f"fade=t=in:st={t0:.2f}:d=0.3:alpha=1,fade=t=out:st={max(t0, t1 - 0.25):.2f}:d=0.25:alpha=1"
         filters.append(f"[{k}:v]format=rgba,{fade}[tx{j}]")
-        filters.append(f"[{last}][tx{j}]overlay=0:{y}:enable='between(t,{t0:.2f},{t1:.2f})'[v{j}]")
+        filters.append(f"[{last}][tx{j}]overlay=0:{int(cy - im.height / 2)}:enable='between(t,{t0:.2f},{t1:.2f})'[v{j}]")
         last = f"v{j}"
     cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs,
            "-f", "lavfi", "-t", f"{DUR}", "-i", "anullsrc=r=44100:cl=stereo",
