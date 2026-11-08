@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+
+# editar-reel skill: local setup, config and API keys stay out of git
+.claude/skills/editar-reel/.venv/
+.claude/skills/editar-reel/config.json
+.claude/skills/editar-reel/.pixabay_key
+.claude/skills/editar-reel/.pexels_key
