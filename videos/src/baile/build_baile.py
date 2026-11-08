@@ -7,7 +7,7 @@ publicar). Arranca sobre la sentadilla con salto porque no hay toma de baile.
 Uso: python3 build_baile.py <carpeta_raw> <salida.mp4>
 """
 import os, subprocess, sys
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 RAW, OUT = sys.argv[1], sys.argv[2]
 W, H, FPS = 1080, 1920, 30
@@ -32,7 +32,7 @@ DUR = t
 # text cards: (start, end, lines) — lines are (text, font, size)
 TEXTS = [
     (0.15, 3.0, [("POV: bailás y tenés", INTER_B, 64), ("20 minutos para", INTER_B, 64),
-                 ("entrenar en casa", INTER_B, 64)], 520),
+                 ("entrenar en casa", INTER_B, 64)], 1300),
     (3.0, 7.0, [("Sentadilla con salto", INTER_B, 58), ("40 seg", INTER_M, 46)], 330),
     (starts[1], starts[2], [("Estocada atrás alternada", INTER_B, 58), ("40 seg", INTER_M, 46)], 330),
     (starts[2], starts[3], [("Puente de glúteo a una pierna", INTER_B, 54), ("40 seg por lado", INTER_M, 46)], 330),
@@ -48,26 +48,25 @@ GRADE = ("eq=contrast=0.93:saturation=0.82:gamma=1.03,"
 
 
 def card(lines):
-    """White text with a soft shadow, centred — Instagram-native look."""
+    """White text on a translucent dark box, centred — like Instagram's text-with-background style,
+    so it stays readable over the bright window."""
     rows = []
-    for txt, f, s in lines:
-        fnt = ImageFont.truetype(f, s)
+    for txt, f, sz in lines:
+        fnt = ImageFont.truetype(f, sz)
         l, tp, r, b = fnt.getbbox(txt)
-        rows.append((txt, fnt, l, tp, r - l, b - tp, s))
-    gap = 16
-    w = max(r[4] for r in rows) + 80
-    h = sum(r[5] for r in rows) + gap * (len(rows) - 1) + 80
-    im = Image.new("RGBA", (W, h), (0, 0, 0, 0))
-    sh = Image.new("RGBA", im.size, (0, 0, 0, 0))
-    y = 40
-    for txt, fnt, l, tp, rw, rh, s in rows:
-        x = (W - rw) / 2 - l
-        ImageDraw.Draw(sh).text((x + 2, y - tp + 4), txt, font=fnt, fill=(0, 0, 0, 170))
-        ImageDraw.Draw(im).text((x, y - tp), txt, font=fnt, fill=(255, 255, 255))
+        rows.append((txt, fnt, l, tp, r - l, b - tp))
+    gap, padx, pady = 14, 34, 24
+    bw = max(r[4] for r in rows) + 2 * padx
+    bh = sum(r[5] for r in rows) + gap * (len(rows) - 1) + 2 * pady
+    im = Image.new("RGBA", (W, bh + 40), (0, 0, 0, 0))
+    x0 = (W - bw) // 2
+    ImageDraw.Draw(im).rounded_rectangle([x0, 20, x0 + bw, 20 + bh], radius=26, fill=(0, 0, 0, 120))
+    d = ImageDraw.Draw(im)
+    y = 20 + pady
+    for txt, fnt, l, tp, rw, rh in rows:
+        d.text(((W - rw) / 2 - l, y - tp), txt, font=fnt, fill=(255, 255, 255))
         y += rh + gap
-    sh = sh.filter(ImageFilter.GaussianBlur(7))
-    sh.alpha_composite(im)
-    return sh
+    return im
 
 
 def main():
